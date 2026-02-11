@@ -1,0 +1,61 @@
+Vagrant.configure("2") do |config|
+  # Box base (Ubuntu 20.04 LTS)
+  config.vm.box = "ubuntu/focal64"
+  config.vm.hostname = "lamp-server"
+
+  # -------------------------
+  # Configuración de red
+  # -------------------------
+  # IP privada fija para acceder desde el host
+  config.vm.network "private_network", ip: "192.168.56.100"
+
+  # Redirección de puertos: host 8080 -> VM 80 (HTTP)
+  config.vm.network "forwarded_port", guest: 80, host: 8080
+
+  # -------------------------
+  # Recursos de la VM
+  # -------------------------
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "LAMP-Server"
+    vb.memory = "2048"
+    vb.cpus = 2
+  end
+
+  # -------------------------
+  # Carpeta compartida
+  # -------------------------
+  # Sincroniza la carpeta www del proyecto con /var/www/html en la VM
+  config.vm.synced_folder "./www", "/var/www/html",
+    create: true,
+    owner: "www-data",
+    group: "www-data"
+
+  # -------------------------
+  # Provisioning
+  # -------------------------
+  # 1) Actualizar índices de paquetes
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+    echo "=== Actualizando índices de paquetes (apt update) ==="
+    apt-get update -y
+  SHELL
+
+  # 2) Instalar y configurar Apache
+  config.vm.provision "shell", path: "scripts/install-apache.sh"
+
+  # 3) Instalar y configurar MySQL (BD, usuario, permisos)
+  config.vm.provision "shell", path: "scripts/install-mysql.sh"
+
+  # 4) Instalar PHP y extensiones requeridas
+  config.vm.provision "shell", path: "scripts/install-php.sh"
+
+  # 5) Configurar virtual host personalizado (extra)
+  config.vm.provision "shell", path: "scripts/configure-vhost.sh"
+
+  # 6) Ajustes finales de permisos en la carpeta web
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+    echo "=== Ajustando permisos de /var/www/html ==="
+    chown -R www-data:www-data /var/www/html
+  SHELL
+end
