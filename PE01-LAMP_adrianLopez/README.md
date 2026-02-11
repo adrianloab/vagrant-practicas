@@ -90,4 +90,5 @@ Acceso por IP
 ## Autor
 
 - Nombre: **Adrián López**
+- LinkedIn: https://www.linkedin.com/in/adrián-lópez-10b7b2398
 - Ciclo: **Administración de Sistemas Informáticos en Red (2º ASIR)**
