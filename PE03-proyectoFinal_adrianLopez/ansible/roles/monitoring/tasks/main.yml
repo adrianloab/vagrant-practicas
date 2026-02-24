@@ -1,0 +1,58 @@
+---
+# ============================================================
+# Rol: monitoring - Health-check y monitorización del cluster
+# Extra: +0.5 puntos - Monitorización
+# ============================================================
+
+- name: Copiar manifiestos de monitorización
+  copy:
+    src: "/vagrant/k8s/{{ item }}"
+    dest: "/home/vagrant/k8s-manifests/{{ item }}"
+    remote_src: yes
+    owner: vagrant
+    group: vagrant
+    mode: '0644'
+  loop:
+    - monitoring-configmap.yml
+    - monitoring-deployment.yml
+    - monitoring-service.yml
+
+- name: Aplicar manifiestos de monitorización
+  shell: "kubectl apply -f /home/vagrant/k8s-manifests/{{ item }}"
+  loop:
+    - monitoring-configmap.yml
+    - monitoring-deployment.yml
+    - monitoring-service.yml
+
+- name: Esperar a que el Deployment de monitorización esté listo
+  shell: kubectl rollout status deployment/health-monitor -n default --timeout=120s
+  retries: 5
+  delay: 10
+
+- name: Copiar script de health-check al master
+  copy:
+    src: "/vagrant/scripts/health-check.sh"
+    dest: "/home/vagrant/health-check.sh"
+    remote_src: yes
+    owner: vagrant
+    group: vagrant
+    mode: '0755'
+
+- name: Configurar cron job para health-check cada 5 minutos
+  cron:
+    name: "k3s-health-check"
+    minute: "*/5"
+    job: "/home/vagrant/health-check.sh >> /var/log/k3s-health.log 2>&1"
+    user: vagrant
+
+- name: Ejecutar health-check inicial
+  shell: /home/vagrant/health-check.sh
+  become: false
+  register: health_result
+  changed_when: false
+  ignore_errors: true
+
+- name: Mostrar resultado del health-check
+  debug:
+    msg: "{{ health_result.stdout_lines }}"
+  when: health_result.stdout_lines is defined

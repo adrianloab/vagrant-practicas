@@ -1,0 +1,11 @@
+---
+# ============================================================
+# Namespace para la aplicación (opcional, usa default)
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: default
+  labels:
+    app: webapp
+    managed-by: ansible

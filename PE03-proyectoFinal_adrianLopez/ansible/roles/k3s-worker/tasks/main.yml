@@ -1,0 +1,43 @@
+---
+# ============================================================
+# Rol: k3s-worker - Une los nodos worker al cluster k3s
+# Token recibido desde site.yml via hostvars del master
+# ============================================================
+
+- name: Mostrar token recibido (parcial)
+  debug:
+    msg: "Token recibido: {{ k3s_token[:20] }}..."
+
+- name: Verificar si k3s ya está instalado
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Instalar k3s agent (worker)
+  shell: |
+    curl -sfL https://get.k3s.io | sh -s - agent \
+      --server https://{{ master_ip }}:6443 \
+      --token "{{ k3s_token }}" \
+      --node-ip {{ ansible_host }} \
+      --flannel-iface enp0s8
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+  when: not k3s_binary.stat.exists
+
+- name: Esperar a que el agente k3s esté activo
+  systemd:
+    name: k3s-agent
+    state: started
+    enabled: yes
+  register: agent_status
+  retries: 10
+  delay: 10
+
+- name: Verificar que k3s-agent está corriendo
+  shell: systemctl is-active k3s-agent
+  register: agent_check
+  changed_when: false
+
+- name: Estado del agente
+  debug:
+    msg: "k3s-agent en {{ inventory_hostname }}: {{ agent_check.stdout }}"

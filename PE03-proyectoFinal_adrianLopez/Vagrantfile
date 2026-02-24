@@ -1,0 +1,119 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# ============================================================
+# PE03 - Cluster Kubernetes con k3s (Opción D)
+# Vagrantfile - Configuración principal de la infraestructura
+# ============================================================
+# Infraestructura:
+#   - master  (192.168.56.10) - Nodo master k3s + Ansible controller
+#   - worker1 (192.168.56.11) - Nodo worker k3s
+#   - worker2 (192.168.56.12) - Nodo worker k3s
+# ============================================================
+
+require 'yaml'
+
+# Cargar variables externas desde config.yaml (+0.5 puntos extra)
+config_file = File.join(File.dirname(__FILE__), 'config.yaml')
+settings = YAML.load_file(config_file)
+
+# Variables de red
+SUBNET     = settings['network']['subnet']
+MASTER_IP  = settings['vms']['master']['ip']
+WORKER1_IP = settings['vms']['worker1']['ip']
+WORKER2_IP = settings['vms']['worker2']['ip']
+
+Vagrant.configure("2") do |config|
+  # Box base para todas las VMs
+  config.vm.box = "ubuntu/focal64"
+
+  # Desactivar la carpeta compartida por defecto para workers
+  # (se usa solo synced_folder explícito en master)
+  
+  # ============================================================
+  # WORKER 1 - Nodo worker de k3s
+  # ============================================================
+  config.vm.define "worker1" do |w1|
+    w1.vm.hostname = settings['vms']['worker1']['hostname']
+    w1.vm.network "private_network", ip: WORKER1_IP
+
+    w1.vm.provider "virtualbox" do |vb|
+      vb.name   = "K3s-Worker1"
+      vb.memory = settings['vms']['worker1']['memory']
+      vb.cpus   = settings['vms']['worker1']['cpus']
+    end
+
+    # Script común de preparación
+    w1.vm.provision "shell", path: "scripts/common.sh",
+      env: {
+        "MASTER_IP"  => MASTER_IP,
+        "WORKER1_IP" => WORKER1_IP,
+        "WORKER2_IP" => WORKER2_IP
+      }
+  end
+
+  # ============================================================
+  # WORKER 2 - Nodo worker de k3s
+  # ============================================================
+  config.vm.define "worker2" do |w2|
+    w2.vm.hostname = settings['vms']['worker2']['hostname']
+    w2.vm.network "private_network", ip: WORKER2_IP
+
+    w2.vm.provider "virtualbox" do |vb|
+      vb.name   = "K3s-Worker2"
+      vb.memory = settings['vms']['worker2']['memory']
+      vb.cpus   = settings['vms']['worker2']['cpus']
+    end
+
+    # Script común de preparación
+    w2.vm.provision "shell", path: "scripts/common.sh",
+      env: {
+        "MASTER_IP"  => MASTER_IP,
+        "WORKER1_IP" => WORKER1_IP,
+        "WORKER2_IP" => WORKER2_IP
+      }
+  end
+
+  # ============================================================
+  # MASTER - Nodo master de k3s + Ansible controller
+  # Se define último para que los workers ya estén listos
+  # ============================================================
+  config.vm.define "master", primary: true do |m|
+    m.vm.hostname = settings['vms']['master']['hostname']
+    m.vm.network "private_network", ip: MASTER_IP
+
+    # Port forwarding para acceder a los servicios desde el host
+    m.vm.network "forwarded_port", guest: 6443,  host: 6443   # API server k3s
+    m.vm.network "forwarded_port", guest: 30080, host: 8080   # App web (NodePort)
+    m.vm.network "forwarded_port", guest: 30443, host: 8443   # App web HTTPS (NodePort)
+    m.vm.network "forwarded_port", guest: 30090, host: 9090   # Monitorización
+
+    m.vm.provider "virtualbox" do |vb|
+      vb.name   = "K3s-Master"
+      vb.memory = settings['vms']['master']['memory']
+      vb.cpus   = settings['vms']['master']['cpus']
+    end
+
+    # Sincronizar todo el proyecto al master
+    m.vm.synced_folder ".", "/vagrant", type: "virtualbox"
+
+    # Script común de preparación
+    m.vm.provision "shell", path: "scripts/common.sh",
+      env: {
+        "MASTER_IP"  => MASTER_IP,
+        "WORKER1_IP" => WORKER1_IP,
+        "WORKER2_IP" => WORKER2_IP
+      }
+
+    # Instalar Ansible y ejecutar playbooks desde el master (+1.0 puntos extra)
+    m.vm.provision "shell", path: "scripts/install-ansible.sh"
+
+    # Ejecutar el playbook principal de Ansible
+    m.vm.provision "shell", path: "scripts/run-ansible.sh",
+      env: {
+        "MASTER_IP"  => MASTER_IP,
+        "WORKER1_IP" => WORKER1_IP,
+        "WORKER2_IP" => WORKER2_IP
+      }
+  end
+end

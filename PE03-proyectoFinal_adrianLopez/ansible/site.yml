@@ -1,0 +1,52 @@
+---
+# ============================================================
+# Playbook principal - Orquesta toda la instalación del cluster
+# Extra: +1.0 puntos - Provisioning con Ansible
+# ============================================================
+
+# PLAY 1: Instalar k3s server en el nodo master
+- name: Instalar k3s en el nodo master
+  hosts: master
+  become: true
+  roles:
+    - k3s-master
+
+# PLAY 2: Unir los workers al cluster usando el token del master
+- name: Instalar k3s en los nodos worker
+  hosts: workers
+  become: true
+  vars:
+    k3s_token: "{{ hostvars[groups['master'][0]]['master_k3s_token'] }}"
+  roles:
+    - k3s-worker
+
+# PLAY 3: Esperar a que los workers se unan al cluster
+- name: Esperar a que los workers se unan al cluster
+  hosts: master
+  become: true
+  tasks:
+    - name: Esperar que los 3 nodos estén Ready
+      shell: kubectl get nodes --no-headers | grep -cw "Ready"
+      register: ready_count
+      retries: 30
+      delay: 10
+      until: ready_count.stdout | int >= 3
+      changed_when: false
+
+    - name: Mostrar nodos del cluster
+      shell: kubectl get nodes
+      register: final_nodes
+      changed_when: false
+
+    - name: Nodos
+      debug:
+        msg: "{{ final_nodes.stdout_lines }}"
+
+# PLAY 4: Configurar SSL, desplegar app y monitorización
+- name: Configurar SSL y desplegar aplicaciones
+  hosts: master
+  become: true
+  roles:
+    - ssl-certs
+    - k8s-app
+    - monitoring

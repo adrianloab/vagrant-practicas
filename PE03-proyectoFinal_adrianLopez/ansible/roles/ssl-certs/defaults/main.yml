@@ -1,0 +1,9 @@
+---
+# Variables por defecto del rol ssl-certs
+ssl_country: "ES"
+ssl_state: "Comunidad Valenciana"
+ssl_city: "Valencia"
+ssl_org: "ASIR2-CENY"
+ssl_cn: "k3s-cluster.local"
+ssl_days: 365
+master_ip: "192.168.56.10"

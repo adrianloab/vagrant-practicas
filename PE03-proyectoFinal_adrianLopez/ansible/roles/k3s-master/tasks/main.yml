@@ -1,0 +1,81 @@
+---
+# ============================================================
+# Rol: k3s-master - Instala y configura el servidor k3s
+# ============================================================
+
+- name: Verificar si k3s ya está instalado
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Instalar k3s server
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
+      --node-ip {{ master_ip }} \
+      --advertise-address {{ master_ip }} \
+      --write-kubeconfig-mode 644 \
+      --disable traefik \
+      --tls-san {{ master_ip }} \
+      --tls-san master \
+      --tls-san localhost \
+      --flannel-iface enp0s8
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+  when: not k3s_binary.stat.exists
+
+- name: Esperar a que k3s server esté listo
+  shell: kubectl get nodes
+  register: k3s_ready
+  retries: 30
+  delay: 10
+  until: k3s_ready.rc == 0
+
+- name: Obtener token de k3s para los workers
+  shell: cat /var/lib/rancher/k3s/server/node-token
+  register: k3s_token
+  changed_when: false
+
+- name: Guardar token como fact accesible por los workers
+  set_fact:
+    master_k3s_token: "{{ k3s_token.stdout }}"
+
+- name: Guardar token en archivo compartido
+  copy:
+    content: "{{ k3s_token.stdout }}"
+    dest: /vagrant/.k3s-token
+    mode: '0644'
+
+- name: Copiar kubeconfig al directorio compartido
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: /vagrant/.kubeconfig
+    remote_src: yes
+    mode: '0644'
+
+- name: Configurar kubectl para el usuario vagrant
+  block:
+    - name: Crear directorio .kube
+      file:
+        path: /home/vagrant/.kube
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Copiar kubeconfig para vagrant
+      copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /home/vagrant/.kube/config
+        remote_src: yes
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+- name: Mostrar estado de los nodos
+  shell: kubectl get nodes
+  register: nodes_status
+  changed_when: false
+
+- name: Mostrar nodos
+  debug:
+    msg: "{{ nodes_status.stdout_lines }}"

@@ -1,0 +1,63 @@
+# ============================================================
+# PE03 - Cluster Kubernetes con k3s
+# Archivo de variables externas (Extra: +0.5 puntos)
+# ============================================================
+
+# Configuración de red
+network:
+  subnet: "192.168.56"
+  master_ip: "192.168.56.10"
+  worker1_ip: "192.168.56.11"
+  worker2_ip: "192.168.56.12"
+
+# Configuración de las VMs
+vms:
+  master:
+    hostname: "master"
+    ip: "192.168.56.10"
+    memory: 2048
+    cpus: 2
+    box: "ubuntu/focal64"
+  worker1:
+    hostname: "worker1"
+    ip: "192.168.56.11"
+    memory: 1024
+    cpus: 1
+    box: "ubuntu/focal64"
+  worker2:
+    hostname: "worker2"
+    ip: "192.168.56.12"
+    memory: 1024
+    cpus: 1
+    box: "ubuntu/focal64"
+
+# Configuración de k3s
+k3s:
+  version: "v1.31.4+k3s1"
+  cluster_cidr: "10.42.0.0/16"
+  service_cidr: "10.43.0.0/16"
+  cluster_dns: "10.43.0.10"
+
+# Configuración de la aplicación
+app:
+  name: "webapp"
+  namespace: "default"
+  replicas: 3
+  image: "nginx:alpine"
+  port: 80
+  nodeport: 30080
+
+# Configuración SSL (Extra: +0.5 puntos)
+ssl:
+  country: "ES"
+  state: "Comunidad Valenciana"
+  city: "Valencia"
+  org: "ASIR2-CENY"
+  cn: "k3s-cluster.local"
+  days: 365
+
+# Configuración de monitorización (Extra: +0.5 puntos)
+monitoring:
+  enabled: true
+  prometheus_port: 30090
+  health_check_interval: 30

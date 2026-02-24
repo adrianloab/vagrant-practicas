@@ -1,0 +1,80 @@
+---
+# ============================================================
+# Deployment - Aplicación web nginx con 3 réplicas
+# Se distribuye entre los workers del cluster
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  namespace: default
+  labels:
+    app: webapp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: webapp
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: webapp
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+              name: http
+            - containerPort: 443
+              name: https
+          volumeMounts:
+            - name: webapp-html
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+            - name: webapp-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: nginx.conf
+            - name: tls-certs
+              mountPath: /etc/nginx/ssl
+              readOnly: true
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: webapp-html
+          configMap:
+            name: webapp-config
+            items:
+              - key: index.html
+                path: index.html
+        - name: webapp-config
+          configMap:
+            name: webapp-config
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+        - name: tls-certs
+          secret:
+            secretName: webapp-tls

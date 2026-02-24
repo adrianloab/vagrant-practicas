@@ -1,0 +1,23 @@
+---
+# ============================================================
+# Service - Expone el monitor en NodePort 30090
+# Accesible desde el host en http://localhost:9090
+# Extra: +0.5 puntos - Monitorización
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: health-monitor
+  namespace: default
+  labels:
+    app: health-monitor
+spec:
+  type: NodePort
+  selector:
+    app: health-monitor
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30090
+      protocol: TCP

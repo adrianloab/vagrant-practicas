@@ -1,0 +1,195 @@
+---
+# ============================================================
+# ConfigMap - Página web personalizada de la aplicación
+# Muestra información del pod y nodo que la sirve
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webapp-config
+  namespace: default
+  labels:
+    app: webapp
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>K3s Cluster - PE03 Proyecto Final</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                color: #fff;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .container {
+                text-align: center;
+                padding: 40px;
+                background: rgba(255,255,255,0.08);
+                border-radius: 20px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255,255,255,0.1);
+                max-width: 700px;
+                width: 90%;
+            }
+            h1 {
+                font-size: 2.2em;
+                margin-bottom: 10px;
+                color: #e94560;
+            }
+            h2 {
+                font-size: 1.2em;
+                color: #a5b4fc;
+                margin-bottom: 30px;
+                font-weight: 300;
+            }
+            .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin: 25px 0;
+            }
+            .info-box {
+                background: rgba(255,255,255,0.05);
+                padding: 20px;
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.08);
+            }
+            .info-box .label {
+                font-size: 0.85em;
+                color: #8b9dc3;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .info-box .value {
+                font-size: 1.3em;
+                color: #e94560;
+                margin-top: 8px;
+                font-weight: bold;
+            }
+            .status {
+                margin-top: 25px;
+                padding: 15px;
+                background: rgba(76, 175, 80, 0.15);
+                border-radius: 10px;
+                border: 1px solid rgba(76, 175, 80, 0.3);
+                color: #81c784;
+            }
+            .footer {
+                margin-top: 30px;
+                font-size: 0.85em;
+                color: #666;
+            }
+            .kubernetes-icon { font-size: 3em; margin-bottom: 15px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="kubernetes-icon">&#9781;</div>
+            <h1>Cluster Kubernetes k3s</h1>
+            <h2>PE03 - Proyecto Final | Adrian Lopez</h2>
+            <div class="info-grid">
+                <div class="info-box">
+                    <div class="label">Hostname del Pod</div>
+                    <div class="value" id="hostname">Cargando...</div>
+                </div>
+                <div class="info-box">
+                    <div class="label">IP del Pod</div>
+                    <div class="value" id="pod-ip">Cargando...</div>
+                </div>
+                <div class="info-box">
+                    <div class="label">Nodo</div>
+                    <div class="value" id="node-name">Cargando...</div>
+                </div>
+                <div class="info-box">
+                    <div class="label">Fecha/Hora</div>
+                    <div class="value" id="datetime">Cargando...</div>
+                </div>
+            </div>
+            <div class="status">
+                &#10003; Cluster operativo - Servido por Kubernetes k3s
+            </div>
+            <div class="footer">
+                ASIR2 - Centralizacion y Normalizacion | UT6 | Curso 2025-2026
+            </div>
+        </div>
+        <script>
+            // Mostrar hostname (se inyecta vía entorno en el server-info endpoint)
+            fetch('/server-info')
+                .then(r => r.json())
+                .then(d => {
+                    document.getElementById('hostname').textContent = d.hostname || 'N/A';
+                    document.getElementById('pod-ip').textContent = d.ip || 'N/A';
+                    document.getElementById('node-name').textContent = d.node || 'N/A';
+                })
+                .catch(() => {
+                    document.getElementById('hostname').textContent = location.hostname;
+                    document.getElementById('pod-ip').textContent = 'Ver terminal';
+                    document.getElementById('node-name').textContent = 'Ver kubectl';
+                });
+            document.getElementById('datetime').textContent = new Date().toLocaleString('es-ES');
+            setInterval(() => {
+                document.getElementById('datetime').textContent = new Date().toLocaleString('es-ES');
+            }, 1000);
+        </script>
+    </body>
+    </html>
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+
+        location /server-info {
+            default_type application/json;
+            return 200 '{"hostname":"$hostname","ip":"$server_addr","node":"$hostname"}';
+        }
+
+        location /healthz {
+            access_log off;
+            return 200 'ok';
+            add_header Content-Type text/plain;
+        }
+    }
+
+    # Servidor HTTPS con certificado autofirmado (+0.5 puntos extra)
+    server {
+        listen 443 ssl;
+        server_name _;
+
+        ssl_certificate     /etc/nginx/ssl/tls.crt;
+        ssl_certificate_key /etc/nginx/ssl/tls.key;
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        ssl_ciphers         HIGH:!aNULL:!MD5;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+
+        location /server-info {
+            default_type application/json;
+            return 200 '{"hostname":"$hostname","ip":"$server_addr","node":"$hostname"}';
+        }
+
+        location /healthz {
+            access_log off;
+            return 200 'ok';
+            add_header Content-Type text/plain;
+        }
+    }

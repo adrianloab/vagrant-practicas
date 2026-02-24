@@ -23,3 +23,4 @@ fi
 
  echo "=== Configuración común completada ==="
 
+

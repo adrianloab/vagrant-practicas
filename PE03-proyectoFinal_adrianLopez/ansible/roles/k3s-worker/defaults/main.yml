@@ -1,0 +1,4 @@
+---
+# Variables por defecto del rol k3s-worker
+k3s_version: "v1.31.4+k3s1"
+master_ip: "192.168.56.10"

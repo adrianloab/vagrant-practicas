@@ -1,0 +1,48 @@
+---
+# ============================================================
+# Rol: ssl-certs - Genera certificados SSL autofirmados
+# Extra: +0.5 puntos - SSL/HTTPS
+# ============================================================
+
+- name: Crear directorio para certificados SSL
+  file:
+    path: /etc/ssl/k3s
+    state: directory
+    mode: '0755'
+
+- name: Verificar si el certificado ya existe
+  stat:
+    path: /etc/ssl/k3s/tls.crt
+  register: ssl_cert
+
+- name: Generar clave privada SSL
+  shell: |
+    openssl genrsa -out /etc/ssl/k3s/tls.key 2048
+  when: not ssl_cert.stat.exists
+
+- name: Generar certificado SSL autofirmado
+  shell: |
+    openssl req -new -x509 \
+      -key /etc/ssl/k3s/tls.key \
+      -out /etc/ssl/k3s/tls.crt \
+      -days {{ ssl_days }} \
+      -subj "/C={{ ssl_country }}/ST={{ ssl_state }}/L={{ ssl_city }}/O={{ ssl_org }}/CN={{ ssl_cn }}" \
+      -addext "subjectAltName=DNS:{{ ssl_cn }},DNS:master,DNS:localhost,IP:{{ master_ip }},IP:127.0.0.1"
+  when: not ssl_cert.stat.exists
+
+- name: Crear Secret TLS en Kubernetes
+  shell: |
+    kubectl create secret tls webapp-tls \
+      --cert=/etc/ssl/k3s/tls.crt \
+      --key=/etc/ssl/k3s/tls.key \
+      --dry-run=client -o yaml | kubectl apply -f -
+  changed_when: false
+
+- name: Verificar certificado generado
+  shell: openssl x509 -in /etc/ssl/k3s/tls.crt -noout -subject -dates
+  register: cert_info
+  changed_when: false
+
+- name: Mostrar información del certificado
+  debug:
+    msg: "{{ cert_info.stdout_lines }}"

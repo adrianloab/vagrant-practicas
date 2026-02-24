@@ -1,0 +1,62 @@
+---
+# ============================================================
+# Rol: k8s-app - Despliega la aplicación web en Kubernetes
+# Incluye Deployment, Service (HTTP y HTTPS) e Ingress
+# ============================================================
+
+- name: Crear directorio para manifiestos
+  file:
+    path: /home/vagrant/k8s-manifests
+    state: directory
+    owner: vagrant
+    group: vagrant
+    mode: '0755'
+
+- name: Copiar manifiestos de Kubernetes
+  copy:
+    src: "/vagrant/k8s/{{ item }}"
+    dest: "/home/vagrant/k8s-manifests/{{ item }}"
+    remote_src: yes
+    owner: vagrant
+    group: vagrant
+    mode: '0644'
+  loop:
+    - namespace.yml
+    - configmap-webapp.yml
+    - deployment-webapp.yml
+    - service-webapp.yml
+    - service-webapp-https.yml
+
+- name: Aplicar manifiestos en orden
+  shell: "kubectl apply -f /home/vagrant/k8s-manifests/{{ item }}"
+  loop:
+    - namespace.yml
+    - configmap-webapp.yml
+    - deployment-webapp.yml
+    - service-webapp.yml
+    - service-webapp-https.yml
+  register: apply_result
+
+- name: Esperar a que el Deployment esté listo
+  shell: kubectl rollout status deployment/webapp -n default --timeout=120s
+  register: rollout_status
+  retries: 5
+  delay: 15
+
+- name: Mostrar estado de los pods
+  shell: kubectl get pods -n default -o wide
+  register: pods_status
+  changed_when: false
+
+- name: Mostrar pods
+  debug:
+    msg: "{{ pods_status.stdout_lines }}"
+
+- name: Mostrar estado de los servicios
+  shell: kubectl get svc -n default
+  register: svc_status
+  changed_when: false
+
+- name: Mostrar servicios
+  debug:
+    msg: "{{ svc_status.stdout_lines }}"
