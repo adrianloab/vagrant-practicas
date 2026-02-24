@@ -22,5 +22,3 @@ fi
  timedatectl set-timezone Europe/Madrid || true
 
  echo "=== Configuración común completada ==="
-
-
